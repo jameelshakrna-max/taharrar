@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Flame,
@@ -20,10 +20,7 @@ import {
   Settings,
   Snowflake,
   Target,
-  Sun,
-  Moon,
   Bell,
-  BookOpen,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -1127,8 +1124,7 @@ function AchievementsTab({ email }: { email: string }) {
 }
 
 // ─── Settings Tab ────────────────────────────────────────────────
-function SettingsTab({ email, onThemeChange }: { email: string; onThemeChange: (theme: 'dark' | 'light') => void }) {
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+function SettingsTab({ email }: { email: string }) {
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState('21:00');
   const [goalStreak, setGoalStreak] = useState(30);
@@ -1142,10 +1138,6 @@ function SettingsTab({ email, onThemeChange }: { email: string; onThemeChange: (
       try {
         const res = await fetch(`/api/preferences?email=${encodeURIComponent(email)}`);
         const data = await res.json();
-        if (data.preferredTheme) {
-          setTheme(data.preferredTheme);
-          onThemeChange(data.preferredTheme);
-        }
         if (typeof data.reminderEnabled === 'boolean') setReminderEnabled(data.reminderEnabled);
         if (data.reminderTime) setReminderTime(data.reminderTime);
         if (data.goalStreak) setGoalStreak(data.goalStreak);
@@ -1156,7 +1148,7 @@ function SettingsTab({ email, onThemeChange }: { email: string; onThemeChange: (
       }
     }
     fetchData();
-  }, [email, onThemeChange]);
+  }, [email]);
 
   // Reminder timer effect
   useEffect(() => {
@@ -1208,14 +1200,6 @@ function SettingsTab({ email, onThemeChange }: { email: string; onThemeChange: (
     }
   };
 
-  const handleThemeToggle = () => {
-    const newTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
-    onThemeChange(newTheme);
-    safeSetItem('taharrur-theme', newTheme);
-    savePreferences({ preferredTheme: newTheme });
-  };
-
   const handleReminderToggle = () => {
     const newVal = !reminderEnabled;
     setReminderEnabled(newVal);
@@ -1254,30 +1238,6 @@ function SettingsTab({ email, onThemeChange }: { email: string; onThemeChange: (
             <div className="p-3 bg-gray-800/30 rounded-lg">
               <p className="text-xs text-gray-400">البريد الإلكتروني</p>
               <p className="text-sm text-white" dir="ltr">{email}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Theme */}
-      <motion.div variants={itemVariants}>
-        <Card className="bg-gray-900/60 backdrop-blur-xl border-gray-800/50">
-          <CardContent className="p-4">
-            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-              <Sun className="w-4 h-4 text-amber-400" />
-              المظهر
-            </h3>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {theme === 'dark' ? <Moon className="w-4 h-4 text-gray-400" /> : <Sun className="w-4 h-4 text-amber-400" />}
-                <span className="text-sm text-gray-300">{theme === 'dark' ? 'الوضع الداكن' : 'الوضع الفاتح'}</span>
-              </div>
-              <button
-                onClick={handleThemeToggle}
-                className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-emerald-600' : 'bg-amber-500'}`}
-              >
-                <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ${theme === 'dark' ? 'translate-x-0.5' : '-translate-x-0.5'}`} />
-              </button>
             </div>
           </CardContent>
         </Card>
@@ -1408,7 +1368,6 @@ function DashboardScreen({ email, onLogout }: { email: string; onLogout: () => v
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'relapse' | ''>('');
   const [activeTab, setActiveTab] = useState<TabId>('home');
-  const [isDark, setIsDark] = useState(true);
   const [checkinMood, setCheckinMood] = useState(0);
   const [checkinNote, setCheckinNote] = useState('');
 
@@ -1429,18 +1388,6 @@ function DashboardScreen({ email, onLogout }: { email: string; onLogout: () => v
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
-
-  // Initialize theme from saved preference
-  useEffect(() => {
-    const saved = safeGetItem('taharrur-theme');
-    if (saved === 'light') {
-      setIsDark(false);
-    }
-  }, []);
-
-  const handleThemeChange = useCallback((theme: 'dark' | 'light') => {
-    setIsDark(theme === 'dark');
-  }, []);
 
   const handleCheckIn = async (relapsed: boolean) => {
     setCheckinLoading(true);
@@ -1474,7 +1421,7 @@ function DashboardScreen({ email, onLogout }: { email: string; onLogout: () => v
         setMessageType('success');
       }
 
-      // Show achievement notifications
+      // Show achievement notifications sequentially
       if (data.newAchievements && data.newAchievements.length > 0) {
         const achievementNames: Record<string, string> = {
           first_checkin: '🌱 البداية',
@@ -1490,11 +1437,13 @@ function DashboardScreen({ email, onLogout }: { email: string; onLogout: () => v
           comeback: '💪 العودة',
           journal_keeper: '📝 كاتب اليوميات',
         };
-        for (const a of data.newAchievements) {
+        
+        for (let i = 0; i < data.newAchievements.length; i++) {
+          const a = data.newAchievements[i];
           setTimeout(() => {
             setMessage(`🎉 إنجاز جديد: ${achievementNames[a] || a}`);
             setMessageType('success');
-          }, 2000);
+          }, 2000 + (i * 2500)); // Stagger notifications by 2.5 seconds
         }
       }
 
@@ -1546,11 +1495,10 @@ function DashboardScreen({ email, onLogout }: { email: string; onLogout: () => v
   if (!stats) return null;
 
   return (
-    <div className={`min-h-screen relative overflow-hidden ${isDark ? '' : 'light-mode'}`}>
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-emerald-950 via-gray-950 to-teal-950">
       {/* Background */}
-      <div className={`fixed inset-0 transition-colors duration-500 ${isDark ? 'bg-gradient-to-br from-emerald-950 via-gray-950 to-teal-950' : 'bg-gradient-to-br from-emerald-50 via-white to-teal-50'}`} />
-      <div className={`fixed top-0 right-0 w-80 h-80 rounded-full blur-3xl transition-colors duration-500 ${isDark ? 'bg-emerald-500/8' : 'bg-emerald-500/10'}`} />
-      <div className={`fixed bottom-0 left-0 w-96 h-96 rounded-full blur-3xl transition-colors duration-500 ${isDark ? 'bg-teal-500/8' : 'bg-teal-500/10'}`} />
+      <div className="fixed top-0 right-0 w-80 h-80 rounded-full blur-3xl bg-emerald-500/8" />
+      <div className="fixed bottom-0 left-0 w-96 h-96 rounded-full blur-3xl bg-teal-500/8" />
 
       {/* Content */}
       <div className="relative z-10 max-w-lg mx-auto px-4 pb-24 pt-2">
@@ -1561,11 +1509,11 @@ function DashboardScreen({ email, onLogout }: { email: string; onLogout: () => v
               <Shield className="w-4.5 h-4.5 text-white" />
             </div>
             <div>
-              <h2 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>رحلتي للتحرر</h2>
-              <p className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`} dir="ltr">{email}</p>
+              <h2 className="text-base font-bold text-white">رحلتي للتحرر</h2>
+              <p className="text-[10px] text-gray-400" dir="ltr">{email}</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={onLogout} className={`${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800/50' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'}`}>
+          <Button variant="ghost" size="icon" onClick={onLogout} className="text-gray-400 hover:text-white hover:bg-gray-800/50">
             <LogOut className="w-5 h-5" />
           </Button>
         </div>
@@ -1606,7 +1554,7 @@ function DashboardScreen({ email, onLogout }: { email: string; onLogout: () => v
           )}
           {activeTab === 'settings' && (
             <motion.div key="settings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-              <SettingsTab email={email} onThemeChange={handleThemeChange} />
+              <SettingsTab email={email} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1620,17 +1568,16 @@ function DashboardScreen({ email, onLogout }: { email: string; onLogout: () => v
 
 // ─── Main Page ───────────────────────────────────────────────────
 export default function TaharrurPage() {
-  const [mounted, setMounted] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [email, setEmail] = useState('');
 
   useEffect(() => {
+    // TODO: SECURITY - Replace localStorage email with a real auth system (NextAuth/Clerk/Supabase) for public production apps.
     const savedEmail = safeGetItem('habit-email');
     if (savedEmail) {
       setEmail(savedEmail);
       setIsLoggedIn(true);
     }
-    setMounted(true);
   }, []);
 
   return (
