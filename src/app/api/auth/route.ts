@@ -10,8 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'يرجى إدخال البريد الإلكتروني' }, { status: 400 });
     }
 
-    const supabase = createClient();
-    
+   const supabase = await createClient();    
     // Send the Magic Link email
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),

@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 
 export async function GET() {
   try {
-    const supabase = createClient();
+   const supabase = await createClient();
     
     // 1. CHECK THE TOKEN
     const { data: { user } } = await supabase.auth.getUser();
