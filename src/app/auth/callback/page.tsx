@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 export default async function AuthCallbackPage({
@@ -24,9 +24,9 @@ export default async function AuthCallbackPage({
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet: CookieOptions[]) {
+        setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
+            cookiesToSet.forEach(({ name, value, ...options }) =>
               cookieStore.set(name, value, options)
             )
           } catch {
