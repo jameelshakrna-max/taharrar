@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -8,7 +9,11 @@ export async function GET(request: Request) {
   if (code) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
-    // 1. Create a trap to catch the exact cookies Supabase wants to set
+    // 1. Get incoming cookies the Next.js 16 way
+    const cookieStore = await cookies();
+    const allCookies = cookieStore.getAll();
+
+    // 2. Create a trap to catch the exact cookies Supabase wants to set
     const cookiesToSet: { name: string; value: string; options: CookieOptions }[] = [];
 
     const supabase = createServerClient(
@@ -17,24 +22,24 @@ export async function GET(request: Request) {
       {
         cookies: {
           getAll() {
-            return request.cookies.getAll(); // Read incoming cookies
+            return allCookies; // Pass the incoming cookies to Supabase
           },
           setAll(cookiesToSetFromSupabase) {
-            // Don't set them immediately! Save them to our array.
+            // Save them to our array instead of setting them immediately
             cookiesToSet.push(...cookiesToSetFromSupabase);
           },
         },
       }
     );
 
-    // 2. Exchange the code for a session
+    // 3. Exchange the code for a session
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      // 3. Create the redirect response
+      // 4. Create the redirect response
       const response = NextResponse.redirect(`${appUrl}/`);
       
-      // 4. Loop through our trapped cookies and attach them to the response perfectly
+      // 5. Manually attach Supabase's exact cookies to the response
       cookiesToSet.forEach(({ name, value, options }) => {
         response.cookies.set(name, value, options);
       });
