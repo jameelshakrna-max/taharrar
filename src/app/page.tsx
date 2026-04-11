@@ -1042,7 +1042,7 @@ function StatsTab({ stats }: { stats: StatsData }) {
                 </div>
               ))}
             </div>
-            {stats.relapseDays === 0 && (
+            {stats.relapsedDays === 0 && (
               <p className="text-center text-xs text-emerald-400 mt-2">لا توجد انتكاسات حتى الآن! 🎉</p>
             )}
           </CardContent>
