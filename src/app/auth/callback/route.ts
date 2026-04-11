@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-// FORCE NODE.JS RUNTIME - Edge runtime silently deletes cookies in Next.js 16
 export const runtime = 'nodejs'; 
 
 export async function GET(request: Request) {
@@ -30,13 +29,9 @@ export async function GET(request: Request) {
           return incomingCookies;
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => 
-            supabaseResponse.cookies.set(name, value, { 
-              path: '/', 
-              httpOnly: true, 
-              secure: true, 
-              sameSite: 'lax' 
-            })
+          // THE FIX: Use `...options` to pass Supabase's exact settings (including httpOnly: false!)
+          cookiesToSet.forEach(({ name, value, ...options }) => 
+            supabaseResponse.cookies.set(name, value, options)
           );
         },
       },
