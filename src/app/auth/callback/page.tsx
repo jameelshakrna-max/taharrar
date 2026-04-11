@@ -16,6 +16,7 @@ export default async function AuthCallbackPage({
 
   const cookieStore = await cookies();
 
+  // @ts-expect-error - Next.js 16 and Supabase SSR types mismatch on cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -24,9 +25,11 @@ export default async function AuthCallbackPage({
         getAll() {
           return cookieStore.getAll();
         },
+        // @ts-expect-error - Next.js 16 and Supabase SSR types mismatch on cookies
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, ...options }) =>
+            cookiesToSet.forEach(({ name, value, options }) =>
+              // @ts-expect-error - Next.js 16 and Supabase SSR types mismatch on cookies
               cookieStore.set(name, value, options)
             )
           } catch {
