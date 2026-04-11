@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,29 +10,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'يرجى إدخال البريد الإلكتروني' }, { status: 400 });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-
-    let user = await db.user.findUnique({
-      where: { email: normalizedEmail },
+    const supabase = createClient();
+    
+    // Send the Magic Link email
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+      },
     });
 
-    if (!user) {
-      user = await db.user.create({
-        data: {
-          id: crypto.randomUUID(),
-          email: normalizedEmail,
-          streakDays: 0,
-          bestStreak: 0,
-          goalStreak: 30,
-          streakFreezesLeft: 1,
-          preferredTheme: 'dark',
-          reminderEnabled: false,
-          reminderTime: '21:00',
-        },
-      });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ user });
+    return NextResponse.json({ message: 'تم إرسال رابط تسجيل الدخول إلى بريدك الإلكتروني' });
   } catch (error) {
     console.error('Auth error:', error);
     return NextResponse.json(
