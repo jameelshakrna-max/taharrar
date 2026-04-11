@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/lib/generated-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String            @id @default(cuid())
+  email             String            @unique
+  name              String?
+  streakDays        Int               @default(0)
+  bestStreak        Int               @default(0)
+  goalStreak        Int               @default(30)
+  streakFreezesLeft Int               @default(1)
+  lastFreezeUsedAt  DateTime?
+  preferredTheme    String            @default("dark")
+  reminderEnabled   Boolean           @default(false)
+  reminderTime      String            @default("21:00")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  checkIns          CheckIn[]
+  journals          DailyJournal[]
+  achievements      UserAchievement[]
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @default(now())
+  relapsed  Boolean  @default(false)
+  mood      Int?
+  note      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model DailyJournal {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @default(now())
+  mood      Int
+  note      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+}
+
+model UserAchievement {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String
+  unlockedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type])
+}
