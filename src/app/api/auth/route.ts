@@ -22,15 +22,14 @@ export async function POST(request: NextRequest) {
 
     // If not, create new user
     if (!user) {
-      user = await db.user.create({
+           user = await db.user.create({
         data: {
+          id: crypto.randomUUID(), // Temporary fix until Supabase Auth takes over
           email: normalizedEmail,
           streakDays: 0,
           bestStreak: 0,
         },
       });
-    }
-
     return NextResponse.json({
       user: {
         id: user.id,
