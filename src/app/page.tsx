@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Flame, Trophy, Shield, LogOut, Calendar, BarChart3, Award, Settings, Star, Snowflake, Sparkles, X,
+  Flame, Trophy, Shield, LogOut, Calendar, BarChart3, Award, Settings, Star, Snowflake, Sparkles, Mail, KeyRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { createClient } from '@/lib/supabase/client';
 
-// Animation variants
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
@@ -30,38 +29,37 @@ const scaleIn = {
 // ─── Login Screen ────────────────────────────────────────────────
 function LoginScreen() {
   const [email, setEmail] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [emailSent, setEmailSent] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const supabase = createClient();
+
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
-      setError('يرجى إدخال بريدك الإلكتروني');
-      return;
-    }
     setError('');
     setLoading(true);
-    try {
-      // Send the magic link entirely from the browser
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { shouldCreateUser: true },
+    });
+    if (error) setError(error.message);
+    else setOtpSent(true);
+    setLoading(false);
+  };
 
-      if (error) {
-        setError(error.message);
-      } else {
-        setEmailSent(true);
-      }
-    } catch {
-      setError('حدث خطأ في الاتصال.');
-    } finally {
-      setLoading(false);
-    }
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: otpCode,
+      type: 'email',
+    });
+    if (error) setError('رمز التحقق غير صحيح أو منتهي الصلاحية');
+    setLoading(false);
   };
 
   return (
@@ -84,23 +82,32 @@ function LoginScreen() {
         <motion.div variants={itemVariants}>
           <Card className="bg-gray-900/80 backdrop-blur-xl border-gray-800/50 shadow-2xl">
             <CardContent className="p-6">
-              {emailSent ? (
-                <div className="text-center space-y-4 py-4">
-                  <Sparkles className="w-12 h-12 text-emerald-400 mx-auto" />
-                  <h2 className="text-xl font-bold text-white">تم إرسال رابط الدخول!</h2>
-                  <p className="text-gray-400">تحقق من بريدك الإلكتروني واضغط على الرابط لتسجيل الدخول.</p>
-                  <p className="text-xs text-gray-500" dir="ltr">{email}</p>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="space-y-2">
-                    <label htmlFor="email" className="text-sm font-medium text-gray-300 block">البريد الإلكتروني</label>
-                    <Input id="email" type="email" placeholder="أدخل بريدك الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 focus:border-emerald-500 text-right text-base" dir="ltr" />
+              {!otpSent ? (
+                <form onSubmit={handleSendOtp} className="space-y-5">
+                  <div className="text-center mb-4">
+                    <Mail className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
+                    <h3 className="text-lg font-bold text-white">أدخل بريدك الإلكتروني</h3>
+                    <p className="text-xs text-gray-400">سنرسل لك رمز تحقق مكون من 6 أرقام</p>
                   </div>
+                  <Input type="email" placeholder="أدخل بريدك الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 focus:border-emerald-500 text-right text-base" dir="ltr" />
                   {error && <p className="text-red-400 text-sm text-center bg-red-500/10 rounded-lg p-2">{error}</p>}
-                  <Button type="submit" disabled={loading} className="w-full h-12 bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-emerald-500/25">
-                    {loading ? 'جاري الإرسال...' : 'إرسال رابط الدخول'}
+                  <Button type="submit" disabled={loading} className="w-full h-12 bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-lg rounded-xl">
+                    {loading ? 'جاري الإرسال...' : 'إرسال رمز التحقق'}
                   </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtp} className="space-y-5">
+                  <div className="text-center mb-4">
+                    <KeyRound className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
+                    <h3 className="text-lg font-bold text-white">أدخل رمز الـ 6 أرقام</h3>
+                    <p className="text-xs text-gray-400" dir="ltr">تم الإرسال إلى {email}</p>
+                  </div>
+                  <Input maxLength={6} type="text" placeholder="000000" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))} className="h-16 bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 focus:border-emerald-500 text-center text-3xl tracking-[0.5em] font-mono" dir="ltr" />
+                  {error && <p className="text-red-400 text-sm text-center bg-red-500/10 rounded-lg p-2">{error}</p>}
+                  <Button type="submit" disabled={loading || otpCode.length !== 6} className="w-full h-12 bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-lg rounded-xl">
+                    {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
+                  </Button>
+                  <button type="button" onClick={() => { setOtpSent(false); setError(''); }} className="w-full text-xs text-gray-500 hover:text-gray-300">تغيير البريد الإلكتروني</button>
                 </form>
               )}
             </CardContent>
@@ -111,7 +118,7 @@ function LoginScreen() {
   );
 }
 
-// ─── Secure Home Tab (Stats Only for now) ────────────────────────
+// ─── Simple Secure Home Tab ─────────────────────────────────────
 function SecureHomeTab({ stats }: { stats: any }) {
   if (!stats) return null;
   const { user, totalCheckIns } = stats;
@@ -158,7 +165,6 @@ function SecureHomeTab({ stats }: { stats: any }) {
         </Card>
       </motion.div>
 
-      {/* Security Info Banner */}
       <motion.div variants={itemVariants}>
         <Card className="bg-sky-500/10 border-sky-500/30">
           <CardContent className="p-4 text-center">
@@ -178,14 +184,13 @@ export default function TaharrurPage() {
   const [stats, setStats] = useState<any>(null);
   const supabase = createClient();
 
-  // 1. Listen for Auth State Changes (Magic Link Click)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) fetchStats();
+      else { setStats(null); setLoading(false); }
     });
 
-    // 2. Get Initial Session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchStats();
@@ -195,10 +200,9 @@ export default function TaharrurPage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 3. Fetch Stats securely (NO EMAIL PARAMETER!)
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/stats'); // Notice: No ?email=... !
+      const res = await fetch('/api/stats');
       const data = await res.json();
       if (data.user) setStats(data);
     } catch (error) {
@@ -208,14 +212,12 @@ export default function TaharrurPage() {
     }
   };
 
-  // 4. Secure Logout
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setSession(null);
     setStats(null);
   };
 
-  // Loading State
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-950">
@@ -224,19 +226,15 @@ export default function TaharrurPage() {
     );
   }
 
-  // Not Logged In -> Show Magic Link Form
   if (!session) {
     return <LoginScreen />;
   }
 
-  // Logged In -> Show Dashboard
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-emerald-950 via-gray-950 to-teal-950">
       <div className="fixed top-0 right-0 w-80 h-80 rounded-full blur-3xl bg-emerald-500/8" />
       <div className="fixed bottom-0 left-0 w-96 h-96 rounded-full blur-3xl bg-teal-500/8" />
-
       <div className="relative z-10 max-w-lg mx-auto px-4 pb-24 pt-2">
-        {/* Header */}
         <div className="flex items-center justify-between py-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -251,8 +249,6 @@ export default function TaharrurPage() {
             <LogOut className="w-5 h-5" />
           </Button>
         </div>
-
-        {/* Content */}
         <SecureHomeTab stats={stats} />
       </div>
     </div>
