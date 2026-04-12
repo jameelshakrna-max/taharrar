@@ -488,24 +488,17 @@ function HomeTab({
                     {todayRelapsed ? 'سجل كانتكاس' : ' ✨ يوم نظيف'}
                   </Badge>
                 </div>
-                {stats.todayMood && (
-                  <p className="text-lg mt-2">
-                    {moodEmojis[stats.todayMood - 1]}{' '}
-                    <span className="text-xs text-gray-400">
-                      {moodLabels[stats.todayMood - 1]}
-                    </span>
-                  </p>
-                )}
-                {stats.todayNote && (
-                  <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
-                    {stats.todayNote}
-                  </p>
+                               {stats.todayNote && (
+                  <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">{stats.todayNote}</p>
                 )}
               </motion.div>
             )}
           </CardContent>
         </Card>
       </motion.div>
+    </motion.div>
+  );
+};
 
       {/* History Section */}
       {recentCheckIns.length > 0 && (
