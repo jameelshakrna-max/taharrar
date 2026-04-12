@@ -37,10 +37,9 @@ const moodLabels = ['سيء جداً', 'سيء', 'عادي', 'جيد', 'ممتا
 function formatDate(dateStr: string) { const d = new Date(dateStr); const t = new Date(); const y = new Date(t); y.setDate(y.getDate() - 1); if (d.toDateString() === t.toDateString()) return 'اليوم'; if (d.toDateString() === y.toDateString()) return 'أمس'; return d.toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' }); }
 function formatDayOnly(dateStr: string) { return new Date(dateStr).toLocaleDateString('ar-SA', { weekday: 'long', day: 'numeric', month: 'long' }); }
 
-const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } } } as const;
-const itemVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } } } as const;
+const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } } as const;
+const itemVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } } as const;
 const scaleIn = { hidden: { opacity: 0, scale: 0.8 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" } } as const;
-
 // ─── Login Screen ────────────────────────────────────────────────
 function LoginScreen() {
   const [email, setEmail] = useState('');
