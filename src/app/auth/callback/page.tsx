@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const code = new URL(window.location.href).searchParams.get("code");
+    const code = searchParams.get("code");
 
     if (code) {
       const supabase = createClient();
       
-      // The browser handles the cookies itself. Next.js can't stop it.
       supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
         if (!error) {
           router.push("/");
@@ -24,7 +24,7 @@ export default function AuthCallbackPage() {
     } else {
       router.push("/?error=auth");
     }
-  }, [router]);
+  }, [router, searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950">

@@ -43,14 +43,17 @@ function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+      // Send the magic link entirely from the browser
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
-      const data = await res.json();
-      if (data.error) {
-        setError(data.error);
+
+      if (error) {
+        setError(error.message);
       } else {
         setEmailSent(true);
       }
