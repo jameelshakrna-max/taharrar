@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const code = searchParams.get("code");
+    // Use standard JavaScript to read the URL, bypassing Next.js Suspense requirements
+    const code = new URL(window.location.href).searchParams.get("code");
 
     if (code) {
       const supabase = createClient();
@@ -24,7 +24,7 @@ export default function AuthCallbackPage() {
     } else {
       router.push("/?error=auth");
     }
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950">
