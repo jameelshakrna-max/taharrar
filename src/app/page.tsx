@@ -485,10 +485,10 @@ function HomeTab({
                         : 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'
                     }
                   >
-                    {todayRelapsed ? 'سجل كانتكاس' : ' ✨ يوم نظيف'}
+                    {todayRelapsed ? 'سجل انتكاس' : ' ✨ يوم نظيف'}
                   </Badge>
                 </div>
-                               {stats.todayNote && (
+                {stats.todayNote && (
                   <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">{stats.todayNote}</p>
                 )}
               </motion.div>
@@ -496,9 +496,6 @@ function HomeTab({
           </CardContent>
         </Card>
       </motion.div>
-    </motion.div>
-  );
-};
 
       {/* History Section */}
       {recentCheckIns.length > 0 && (
@@ -516,42 +513,45 @@ function HomeTab({
               </div>
 
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                {recentCheckIns.map((checkIn, index) => (
-                  <motion.div
-                    key={checkIn.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.03 }}
-                    className="flex items-center justify-between p-3 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                          checkIn.relapsed ? 'bg-red-500/10' : 'bg-emerald-500/10'
-                        }
-                      >
-                        {checkIn.relapsed ? (
-                          <ArrowLeftRight className="w-4 h-4 text-red-400" />
-                        ) : (
-                          <Shield className="w-4 h-4 text-emerald-400" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm text-white">{formatDate(checkIn.date)}</p>
-                      </div>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${
-                        checkIn.relapsed
-                          ? 'border-red-500/30 text-red-400 bg-red-500/5'
-                          : 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'
-                      }
+                {recentCheckIns.map((checkIn, index) => {
+                  const checkInBgClass = checkIn.relapsed
+                    ? 'bg-red-500/10'
+                    : 'bg-emerald-500/10';
+                  const badgeClass = checkIn.relapsed
+                    ? 'border-red-500/30 text-red-400 bg-red-500/5'
+                    : 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5';
+
+                  return (
+                    <motion.div
+                      key={checkIn.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.03 }}
+                      className="flex items-center justify-between p-3 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-colors"
                     >
-                      {checkIn.relapsed ? 'انتكاس' : 'نظيف'}
-                    </Badge>
-                  </motion.div>
-                ))}
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center ${checkInBgClass}`}
+                        >
+                          {checkIn.relapsed ? (
+                            <ArrowLeftRight className="w-4 h-4 text-red-400" />
+                          ) : (
+                            <Shield className="w-4 h-4 text-emerald-400" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm text-white">{formatDate(checkIn.date)}</p>
+                        </div>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${badgeClass}`}
+                      >
+                        {checkIn.relapsed ? 'انتكاس' : 'نظيف'}
+                      </Badge>
+                    </motion.div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -589,7 +589,7 @@ function BottomNav({
               onClick={() => onTabChange(tab.id)}
               className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-all duration-200 min-w-[56px] ${
                 isActive ? 'text-emerald-400' : 'text-gray-500 hover:text-gray-400'
-              }`
+              }`}
             >
               <Icon className="w-5 h-5" />
               <span className="text-[10px] font-medium">{tab.label}</span>
@@ -635,22 +635,20 @@ function DashboardScreen({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchStats();
-      else {
-        setStats(null);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        fetchStats();
+      } else {
         setLoading(false);
       }
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        fetchStats();
-      } else {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) fetchStats();
+      else {
+        setStats(null);
         setLoading(false);
       }
     });
@@ -796,20 +794,12 @@ export default function TaharrurPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) {
-        setLoading(false);
-      } else {
-        setLoading(false);
-      }
+      setLoading(false);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) {
-        setLoading(false);
-      } else {
-        setLoading(false);
-      }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -824,6 +814,7 @@ export default function TaharrurPage() {
           className="w-10 h-10 border-3 border-emerald-500/30 border-t-emerald-500 rounded-full"
         />
       </div>
+    );
   }
 
   if (!session) {
