@@ -12,23 +12,23 @@ export async function GET() {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
-    // Step 2: Find or create user
+    // Step 2: Find or create user using upsert by email
+    // We use email as the unique key because the Supabase auth ID
+    // might not match an existing Prisma user ID
     let dbUser;
     try {
+      // First try to find by ID (ideal case)
       dbUser = await db.user.findUnique({ where: { id: user.id } });
-    } catch (dbFindError: any) {
-      console.error('DB find user error:', dbFindError?.message);
-      return NextResponse.json({ 
-        error: 'خطأ في الاتصال بقاعدة البيانات',
-        hint: 'Check if DATABASE_URL is set and migrations have been run',
-        dbError: dbFindError?.message,
-      }, { status: 500 });
-    }
-    
-    if (!dbUser) {
-      try {
-        dbUser = await db.user.create({
-          data: {
+      
+      if (!dbUser) {
+        // Not found by ID — try by email, or create new
+        dbUser = await db.user.upsert({
+          where: { email: user.email! },
+          update: {
+            // Update the ID if it changed (e.g., user was deleted and re-created in Supabase)
+            id: user.id,
+          },
+          create: {
             id: user.id,
             email: user.email!,
             streakDays: 0,
@@ -40,13 +40,13 @@ export async function GET() {
             reminderTime: '21:00',
           },
         });
-      } catch (dbCreateError: any) {
-        console.error('DB create user error:', dbCreateError?.message);
-        return NextResponse.json({ 
-          error: 'خطأ في إنشاء المستخدم',
-          dbError: dbCreateError?.message,
-        }, { status: 500 });
       }
+    } catch (dbError: any) {
+      console.error('DB user error:', dbError?.message);
+      return NextResponse.json({ 
+        error: 'خطأ في الاتصال بقاعدة البيانات',
+        dbError: dbError?.message,
+      }, { status: 500 });
     }
 
     // Step 3: Get today's date range
@@ -110,7 +110,6 @@ export async function GET() {
     return NextResponse.json({ 
       error: 'حدث خطأ في الخادم',
       message: error?.message,
-      stack: error?.stack?.split('\n').slice(0, 3),
     }, { status: 500 });
   }
 }
