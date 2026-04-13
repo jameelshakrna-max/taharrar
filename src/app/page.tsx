@@ -35,6 +35,10 @@ const t: Record<Lang, Record<string, string>> = {
     verifying: 'جاري التحقق...',
     changeEmail: 'تغيير البريد الإلكتروني',
     invalidOtp: 'رمز التحقق غير صحيح أو منتهي الصلاحية',
+    rateLimitError: 'تم تجاوز حد الإرسال. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى.',
+    resendOtp: 'إعادة إرسال الرمز',
+    resendIn: 'إعادة الإرسال بعد',
+    seconds: 'ثانية',
     consecutiveDays: 'يوم متتالي بدون العادة',
     freedomDays: 'أيام من الحرية',
     progressGoal: 'التقدم نحو الهدف',
@@ -145,6 +149,10 @@ const t: Record<Lang, Record<string, string>> = {
     verifying: 'Verifying...',
     changeEmail: 'Change email',
     invalidOtp: 'Invalid or expired verification code',
+    rateLimitError: 'Rate limit exceeded. Please wait a moment and try again.',
+    resendOtp: 'Resend code',
+    resendIn: 'Resend in',
+    seconds: 'sec',
     consecutiveDays: 'Consecutive days without habit',
     freedomDays: 'Days of freedom',
     progressGoal: 'Progress towards goal',
@@ -330,13 +338,61 @@ function LoginScreen() {
   const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0);
   const supabase = createClient();
   const isRTL = lang === 'ar';
+  const COOLDOWN_SECONDS = 60;
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault(); setError(''); setLoading(true);
+  // Restore cooldown from localStorage on mount
+  useEffect(() => {
+    const savedUntil = localStorage.getItem('otp_cooldown_until');
+    if (savedUntil) {
+      const remaining = Math.floor((parseInt(savedUntil, 10) - Date.now()) / 1000);
+      if (remaining > 0) {
+        setCooldown(remaining);
+      } else {
+        localStorage.removeItem('otp_cooldown_until');
+      }
+    }
+  }, []);
+
+  // Countdown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          localStorage.removeItem('otp_cooldown_until');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown > 0]);
+
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (cooldown > 0) return;
+    setError(''); setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
-    if (error) setError(error.message); else setOtpSent(true);
+    if (error) {
+      if (error.status === 429 || error.message.toLowerCase().includes('rate limit') || error.message.toLowerCase().includes('too many')) {
+        setError(tx('rateLimitError'));
+        // Set a longer cooldown when rate limited by server
+        const longerCooldown = 120;
+        const until = Date.now() + longerCooldown * 1000;
+        localStorage.setItem('otp_cooldown_until', String(until));
+        setCooldown(longerCooldown);
+      } else {
+        setError(error.message);
+      }
+    } else {
+      setOtpSent(true);
+      const until = Date.now() + COOLDOWN_SECONDS * 1000;
+      localStorage.setItem('otp_cooldown_until', String(until));
+      setCooldown(COOLDOWN_SECONDS);
+    }
     setLoading(false);
   };
 
@@ -346,6 +402,13 @@ function LoginScreen() {
     if (error) setError(tx('invalidOtp'));
     setLoading(false);
   };
+
+  const handleChangeEmail = () => {
+    setOtpSent(false); setError(''); setOtpCode('');
+  };
+
+  const isSendDisabled = loading || cooldown > 0;
+  const sendButtonText = loading ? tx('sending') : (cooldown > 0 ? `${tx('resendIn')} ${cooldown}${cooldown > 1 ? '' : ''} ${tx('seconds')}` : tx('sendOtp'));
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -373,7 +436,7 @@ function LoginScreen() {
                   </div>
                   <Input type="email" placeholder={tx('emailPlaceholder')} value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 focus:border-emerald-500 text-base" dir="ltr" />
                   {error && <p className="text-red-400 text-sm text-center bg-red-500/10 rounded-lg p-2">{error}</p>}
-                  <Button type="submit" disabled={loading} className="w-full h-12 bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-emerald-500/25">{loading ? tx('sending') : tx('sendOtp')}</Button>
+                  <Button type="submit" disabled={isSendDisabled} className={`w-full h-12 font-bold text-lg rounded-xl shadow-lg shadow-emerald-500/25 ${cooldown > 0 ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white'}`}>{sendButtonText}</Button>
                 </form>
               ) : (
                 <form onSubmit={handleVerifyOtp} className="space-y-5">
@@ -384,7 +447,12 @@ function LoginScreen() {
                   <Input maxLength={6} type="text" placeholder="000000" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))} className="h-16 bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 focus:border-emerald-500 text-center text-3xl tracking-[0.5em] font-mono" dir="ltr" />
                   {error && <p className="text-red-400 text-sm text-center bg-red-500/10 rounded-lg p-2">{error}</p>}
                   <Button type="submit" disabled={loading || otpCode.length !== 6} className="w-full h-12 bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-emerald-500/25">{loading ? tx('verifying') : tx('login')}</Button>
-                  <button type="button" onClick={() => { setOtpSent(false); setError(''); }} className="w-full text-xs text-gray-500 hover:text-gray-300">{tx('changeEmail')}</button>
+                  <div className="flex flex-col gap-2">
+                    <button type="button" onClick={() => handleSendOtp()} disabled={cooldown > 0} className={`w-full text-xs py-2 rounded-lg transition-colors ${cooldown > 0 ? 'text-gray-600 cursor-not-allowed' : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'}`}>
+                      {cooldown > 0 ? `${tx('resendIn')} ${cooldown} ${tx('seconds')}` : tx('resendOtp')}
+                    </button>
+                    <button type="button" onClick={handleChangeEmail} className="w-full text-xs text-gray-500 hover:text-gray-300">{tx('changeEmail')}</button>
+                  </div>
                 </form>
               )}
             </CardContent>
