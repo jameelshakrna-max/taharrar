@@ -12,34 +12,36 @@ export async function GET() {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
-    // Step 2: Find or create user using upsert by email
-    // We use email as the unique key because the Supabase auth ID
-    // might not match an existing Prisma user ID
+    // Step 2: Find or create user
+    // Try by ID first, then by email (in case Supabase auth ID changed)
     let dbUser;
     try {
-      // First try to find by ID (ideal case)
       dbUser = await db.user.findUnique({ where: { id: user.id } });
       
       if (!dbUser) {
-        // Not found by ID — try by email, or create new
-        dbUser = await db.user.upsert({
-          where: { email: user.email! },
-          update: {
-            // Update the ID if it changed (e.g., user was deleted and re-created in Supabase)
-            id: user.id,
-          },
-          create: {
-            id: user.id,
-            email: user.email!,
-            streakDays: 0,
-            bestStreak: 0,
-            goalStreak: 30,
-            streakFreezesLeft: 1,
-            preferredTheme: 'dark',
-            reminderEnabled: false,
-            reminderTime: '21:00',
-          },
-        });
+        // Not found by ID — check if user exists by email
+        const existingByEmail = await db.user.findUnique({ where: { email: user.email! } });
+        
+        if (existingByEmail) {
+          // User exists with a different ID — use the existing record
+          // The CheckIns are linked to existingByEmail.id, so we use that
+          dbUser = existingByEmail;
+        } else {
+          // Truly new user — create
+          dbUser = await db.user.create({
+            data: {
+              id: user.id,
+              email: user.email!,
+              streakDays: 0,
+              bestStreak: 0,
+              goalStreak: 30,
+              streakFreezesLeft: 1,
+              preferredTheme: 'dark',
+              reminderEnabled: false,
+              reminderTime: '21:00',
+            },
+          });
+        }
       }
     } catch (dbError: any) {
       console.error('DB user error:', dbError?.message);
