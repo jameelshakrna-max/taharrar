@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 
 export async function GET() {
   try {
+    // Step 1: Authenticate
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
@@ -11,6 +12,7 @@ export async function GET() {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
+    // Step 2: Find or create user
     let dbUser;
     try {
       dbUser = await db.user.findUnique({ where: { id: user.id } });
@@ -47,25 +49,21 @@ export async function GET() {
       }
     }
 
-    // Get today's date range
+    // Step 3: Get today's date range
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-    let todayCheckIn = null;
-    try {
-      todayCheckIn = await db.checkIn.findFirst({
-        where: { 
-          userId: dbUser.id, 
-          date: { gte: startOfDay, lt: endOfDay },
-        },
-      });
-    } catch (checkInError: any) {
-      console.error('CheckIn query error:', checkInError?.message);
-      // Continue without todayCheckIn rather than crashing
-    }
+    // Step 4: Get today's check-in
+    const todayCheckIn = await db.checkIn.findFirst({
+      where: { 
+        userId: dbUser.id, 
+        date: { gte: startOfDay, lt: endOfDay },
+      },
+    });
 
-    let recentCheckIns: any[] = [];
+    // Step 5: Get all stats
+    let recentCheckIns: Awaited<ReturnType<typeof db.checkIn.findMany>> = [];
     let totalCheckIns = 0;
     let cleanDays = 0;
     let relapsedDays = 0;
@@ -91,6 +89,7 @@ export async function GET() {
       journalCount = 0;
     }
 
+    // Step 6: Return all data
     return NextResponse.json({
       user: dbUser,
       todayCheckedIn: !!todayCheckIn,
