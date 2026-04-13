@@ -4,7 +4,6 @@ import { db } from '@/lib/db';
 
 export async function GET() {
   try {
-    // Step 1: Authenticate
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
@@ -12,22 +11,15 @@ export async function GET() {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
-    // Step 2: Find or create user
-    // Try by ID first, then by email (in case Supabase auth ID changed)
+    // Find or create user (with email fallback)
     let dbUser;
     try {
       dbUser = await db.user.findUnique({ where: { id: user.id } });
-      
       if (!dbUser) {
-        // Not found by ID — check if user exists by email
         const existingByEmail = await db.user.findUnique({ where: { email: user.email! } });
-        
         if (existingByEmail) {
-          // User exists with a different ID — use the existing record
-          // The CheckIns are linked to existingByEmail.id, so we use that
           dbUser = existingByEmail;
         } else {
-          // Truly new user — create
           dbUser = await db.user.create({
             data: {
               id: user.id,
@@ -51,47 +43,34 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    // Step 3: Get today's date range
+    // Date range for today
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-    // Step 4: Get today's check-in
-    const todayCheckIn = await db.checkIn.findFirst({
-      where: { 
-        userId: dbUser.id, 
-        date: { gte: startOfDay, lt: endOfDay },
-      },
-    });
-
-    // Step 5: Get all stats
-    let recentCheckIns: Awaited<ReturnType<typeof db.checkIn.findMany>> = [];
-    let totalCheckIns = 0;
-    let cleanDays = 0;
-    let relapsedDays = 0;
-    let journalCount = 0;
-
-    try {
-      recentCheckIns = await db.checkIn.findMany({
+    // ✅ RUN ALL QUERIES IN PARALLEL — this is the key optimization
+    const [
+      todayCheckIn,
+      recentCheckIns,
+      totalCheckIns,
+      cleanDays,
+      relapsedDays,
+      journalCount,
+    ] = await Promise.all([
+      db.checkIn.findFirst({
+        where: { userId: dbUser.id, date: { gte: startOfDay, lt: endOfDay } },
+      }),
+      db.checkIn.findMany({
         where: { userId: dbUser.id },
         orderBy: { date: 'desc' },
         take: 10,
-      });
+      }),
+      db.checkIn.count({ where: { userId: dbUser.id } }),
+      db.checkIn.count({ where: { userId: dbUser.id, relapsed: false } }),
+      db.checkIn.count({ where: { userId: dbUser.id, relapsed: true } }),
+      db.dailyJournal.count({ where: { userId: dbUser.id } }).catch(() => 0),
+    ]);
 
-      totalCheckIns = await db.checkIn.count({ where: { userId: dbUser.id } });
-      cleanDays = await db.checkIn.count({ where: { userId: dbUser.id, relapsed: false } });
-      relapsedDays = await db.checkIn.count({ where: { userId: dbUser.id, relapsed: true } });
-    } catch (statsError: any) {
-      console.error('Stats query error:', statsError?.message);
-    }
-
-    try {
-      journalCount = await db.dailyJournal.count({ where: { userId: dbUser.id } });
-    } catch {
-      journalCount = 0;
-    }
-
-    // Step 6: Return all data
     return NextResponse.json({
       user: dbUser,
       todayCheckedIn: !!todayCheckIn,
