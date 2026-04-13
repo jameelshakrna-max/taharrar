@@ -4,56 +4,92 @@ import { db } from '@/lib/db';
 
 export async function GET() {
   try {
-   const supabase = await createClient();
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
-    // 1. CHECK THE TOKEN
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
-    // 2. FIND OR CREATE USER IN PRISMA USING THEIR SECURE ID
-    let dbUser = await db.user.findUnique({ where: { id: user.id } });
+    let dbUser;
+    try {
+      dbUser = await db.user.findUnique({ where: { id: user.id } });
+    } catch (dbFindError: any) {
+      console.error('DB find user error:', dbFindError?.message);
+      return NextResponse.json({ 
+        error: 'خطأ في الاتصال بقاعدة البيانات',
+        hint: 'Check if DATABASE_URL is set and migrations have been run',
+        dbError: dbFindError?.message,
+      }, { status: 500 });
+    }
     
     if (!dbUser) {
-      dbUser = await db.user.create({
-        data: {
-          id: user.id,
-          email: user.email!,
-          streakDays: 0,
-          bestStreak: 0,
-          goalStreak: 30,
-          streakFreezesLeft: 1,
-          preferredTheme: 'dark',
-          reminderEnabled: false,
-          reminderTime: '21:00',
-        },
-      });
+      try {
+        dbUser = await db.user.create({
+          data: {
+            id: user.id,
+            email: user.email!,
+            streakDays: 0,
+            bestStreak: 0,
+            goalStreak: 30,
+            streakFreezesLeft: 1,
+            preferredTheme: 'dark',
+            reminderEnabled: false,
+            reminderTime: '21:00',
+          },
+        });
+      } catch (dbCreateError: any) {
+        console.error('DB create user error:', dbCreateError?.message);
+        return NextResponse.json({ 
+          error: 'خطأ في إنشاء المستخدم',
+          dbError: dbCreateError?.message,
+        }, { status: 500 });
+      }
     }
 
-    // 3. GET STATS (Notice we use dbUser.id now, NOT email!)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Get today's date range
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-    const todayCheckIn = await db.checkIn.findFirst({
-      where: { userId: dbUser.id, date: { gte: today, lt: tomorrow } },
-    });
+    let todayCheckIn = null;
+    try {
+      todayCheckIn = await db.checkIn.findFirst({
+        where: { 
+          userId: dbUser.id, 
+          date: { gte: startOfDay, lt: endOfDay },
+        },
+      });
+    } catch (checkInError: any) {
+      console.error('CheckIn query error:', checkInError?.message);
+      // Continue without todayCheckIn rather than crashing
+    }
 
-    const recentCheckIns = await db.checkIn.findMany({
-      where: { userId: dbUser.id },
-      orderBy: { date: 'desc' },
-      take: 10,
-    });
+    let recentCheckIns: any[] = [];
+    let totalCheckIns = 0;
+    let cleanDays = 0;
+    let relapsedDays = 0;
+    let journalCount = 0;
 
-    const totalCheckIns = await db.checkIn.count({ where: { userId: dbUser.id } });
-    const cleanDays = await db.checkIn.count({ where: { userId: dbUser.id, relapsed: false } });
-    const relapsedDays = await db.checkIn.count({ where: { userId: dbUser.id, relapsed: true } });
-    const journalCount = await db.dailyJournal.count({ where: { userId: dbUser.id } });
+    try {
+      recentCheckIns = await db.checkIn.findMany({
+        where: { userId: dbUser.id },
+        orderBy: { date: 'desc' },
+        take: 10,
+      });
 
-    // ... (Keep the rest of your weekly/monthly stats calculation here exactly as it was, 
-    // just make sure all db.checkIn.findMany use `where: { userId: dbUser.id }` instead of email)
+      totalCheckIns = await db.checkIn.count({ where: { userId: dbUser.id } });
+      cleanDays = await db.checkIn.count({ where: { userId: dbUser.id, relapsed: false } });
+      relapsedDays = await db.checkIn.count({ where: { userId: dbUser.id, relapsed: true } });
+    } catch (statsError: any) {
+      console.error('Stats query error:', statsError?.message);
+    }
+
+    try {
+      journalCount = await db.dailyJournal.count({ where: { userId: dbUser.id } });
+    } catch {
+      journalCount = 0;
+    }
 
     return NextResponse.json({
       user: dbUser,
@@ -70,8 +106,12 @@ export async function GET() {
       relapseByDay: [],
       journalCount,
     });
-  } catch (error) {
-    console.error('Stats error:', error);
-    return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Stats error:', error?.message);
+    return NextResponse.json({ 
+      error: 'حدث خطأ في الخادم',
+      message: error?.message,
+      stack: error?.stack?.split('\n').slice(0, 3),
+    }, { status: 500 });
   }
 }
